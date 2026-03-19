@@ -1,28 +1,26 @@
 from transformers import pipeline
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import util
+from app.database import shared_embedding_model   # ← shared, not reloaded
 import re
 
 # ---------------------------------------------------------------------------
-# Models — loaded once at startup
+# NLI model — only new model loaded here
 # ---------------------------------------------------------------------------
 nli = pipeline(
     "text-classification",
     model="cross-encoder/nli-deberta-v3-small",
-    device=-1,   # CPU; set to 0 for GPU
+    device=-1,
     top_k=None
 )
 
-similarity_model = SentenceTransformer("all-MiniLM-L6-v2")
-
 # ---------------------------------------------------------------------------
-# Thresholds — derived from exhaustive case analysis
+# Thresholds
 # ---------------------------------------------------------------------------
-QUERY_DOC_RELEVANCE    = 0.30   # query↔doc: below → wrong doc retrieved → NEUTRAL
-ENTAILMENT_THRESHOLD   = 0.50   # NLI entailment: above → VERIFIED
-CONTRADICTION_THRESHOLD= 0.90   # NLI contradiction: above → CONTRADICTION
-AMBIGUITY_CEILING      = 0.35   # both NLI scores below → claim unverifiable → NEUTRAL
+QUERY_DOC_RELEVANCE     = 0.30
+ENTAILMENT_THRESHOLD    = 0.50
+CONTRADICTION_THRESHOLD = 0.90
+AMBIGUITY_CEILING       = 0.35
 
-# Filler words stripped when checking if a claim is meaningful
 _FILLERS = {
     'the','and','for','that','this','with','from','are','was','were',
     'has','have','been','its','their','about','states','says','claims',
@@ -34,12 +32,13 @@ _FILLERS = {
 # Helpers
 # ---------------------------------------------------------------------------
 def _meaningful_word_count(text: str) -> int:
-    """Count real content words (≥3 chars, not filler) in text."""
     words = re.findall(r"[a-zA-Z]{3,}", text.lower())
     return len([w for w in words if w not in _FILLERS])
 
 def _embed_similarity(text1: str, text2: str) -> float:
-    emb = similarity_model.encode([text1, text2], convert_to_tensor=True)
+    emb = shared_embedding_model.encode(   # ← same instance as database.py
+        [text1, text2], convert_to_tensor=True
+    )
     return util.cos_sim(emb[0], emb[1]).item()
 
 def _nli_scores(premise: str, hypothesis: str) -> dict:
@@ -50,52 +49,25 @@ def _nli_scores(premise: str, hypothesis: str) -> dict:
 # Main auditor
 # ---------------------------------------------------------------------------
 def audit_response(truth: str, ai_claim: str, query: str = "") -> str:
-    """
-    Returns one of: VERIFIED | CONTRADICTION | NEUTRAL
-
-    truth    : ground truth sentence from knowledge base
-    ai_claim : the AI response claim to verify
-    query    : the original user query (used for doc relevance check)
-    """
-
-    # ------------------------------------------------------------------
-    # Guard: no truth available
-    # ------------------------------------------------------------------
     if not truth or truth.strip() == "No reference found.":
         return "NEUTRAL"
 
     try:
-
-        # ------------------------------------------------------------------
-        # Step 1 — Is the retrieved document actually about the query topic?
-        # Compares query↔truth, NOT claim↔truth.
-        # The retriever already matched query→doc, but keyword overlap in
-        # main.py can pass loosely related docs. This is the safety net.
-        # ------------------------------------------------------------------
+        # Step 1 — Is retrieved doc actually about the query?
         if query and query.strip():
             query_doc_sim = _embed_similarity(query, truth)
             print(f"DEBUG - Query↔Doc  similarity : {query_doc_sim:.3f}")
             if query_doc_sim < QUERY_DOC_RELEVANCE:
-                print("DEBUG - Retrieved doc is not relevant to query → NEUTRAL")
+                print("DEBUG - Retrieved doc not relevant to query → NEUTRAL")
                 return "NEUTRAL"
 
-        # ------------------------------------------------------------------
-        # Step 2 — Is the claim making any real assertion?
-        # Catches: "xyz", "something", purely placeholder text.
-        # A claim needs ≥2 meaningful content words to be verifiable.
-        # ------------------------------------------------------------------
-        claim_word_count = _meaningful_word_count(ai_claim)
-        print(f"DEBUG - Claim meaningful word count: {claim_word_count}")
-        if claim_word_count < 2:
+        # Step 2 — Is the claim making a real assertion?
+        if _meaningful_word_count(ai_claim) < 2:
             print("DEBUG - Claim has no meaningful content → NEUTRAL")
             return "NEUTRAL"
 
-        # ------------------------------------------------------------------
-        # Step 3 — NLI: does claim contradict or entail truth?
-        # Forward only (truth as premise, claim as hypothesis).
-        # Backward direction removed — unreliable, causes false VERIFIED.
-        # ------------------------------------------------------------------
-        scores = _nli_scores(truth, ai_claim)
+        # Step 3 — NLI
+        scores              = _nli_scores(truth, ai_claim)
         entailment_score    = scores.get("ENTAILMENT", 0)
         contradiction_score = scores.get("CONTRADICTION", 0)
         neutral_score       = scores.get("NEUTRAL", 0)
@@ -104,36 +76,18 @@ def audit_response(truth: str, ai_claim: str, query: str = "") -> str:
               f"contra={contradiction_score:.3f}  "
               f"neutral={neutral_score:.3f}")
 
-        # ------------------------------------------------------------------
-        # Step 4 — Decision tree (order matters)
-        # ------------------------------------------------------------------
-
-        # 4a. Both signals weak → claim is too vague to produce a verdict
-        #     e.g. "GDPR article 17 states that xyz", "federal wage exists"
-        #     These are not wrong, just unverifiable → NEUTRAL
+        # Step 4 — Decision
         if entailment_score < AMBIGUITY_CEILING and contradiction_score < AMBIGUITY_CEILING:
-            print("DEBUG - Both NLI scores weak, claim is unverifiable → NEUTRAL")
+            print("DEBUG - Claim unverifiable → NEUTRAL")
             return "NEUTRAL"
 
-        # 4b. Clear entailment → claim agrees with truth
         if entailment_score >= ENTAILMENT_THRESHOLD:
-            print("DEBUG - Entailment dominant → VERIFIED")
             return "VERIFIED"
 
-        # 4c. Very high contradiction → genuine factual error
-        #     Threshold 0.90 chosen specifically to avoid flagging:
-        #     - paraphrases (e.g. "$7.25 for 1hr" vs "$7.25 per hour")
-        #     - partial info (claim is subset of truth)
-        #     - informal phrasing
-        #     Only fires when model is near-certain (0.90+)
         if contradiction_score >= CONTRADICTION_THRESHOLD:
-            print("DEBUG - Contradiction dominant → CONTRADICTION")
             return "CONTRADICTION"
 
-        # 4d. Ambiguous middle zone (contradiction 0.35–0.89, entailment 0.35–0.49)
-        #     Claim is neither clearly wrong nor clearly right.
-        #     Give benefit of the doubt — partial/incomplete info ≠ wrong.
-        print("DEBUG - Ambiguous zone → VERIFIED (benefit of doubt)")
+        # Ambiguous — partial/informal info, benefit of doubt
         return "VERIFIED"
 
     except Exception as e:
