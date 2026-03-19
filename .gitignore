@@ -1,0 +1,25 @@
+# ========================
+# Project Veracity Ignore
+# ========================
+
+# Python / Backend
+backend/venv/
+backend/__pycache__/
+*.pyc
+.env
+
+# Node / Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+npm-debug.log
+
+# Databases & AI Models
+qdrant_storage/
+backend/data/
+*.safetensors
+*.bin
+
+# OS Files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+fastapi 
+uvicorn
+qdrant-client
+sentence-transformers
+langchain
+langchain-community
+langchain-openai
+rank_bm25
+semantic-router
+pydantic-settings
+python-multipart
