@@ -5,7 +5,7 @@ from langchain_core.documents import Document
 from app.database import initialize_retriever
 from app.auditor import audit_response
 import asyncio
-
+import time
 # ---------------------------------------------------------------------------
 # Knowledge base
 # ---------------------------------------------------------------------------
@@ -55,6 +55,7 @@ _STOP_WORDS = {
 
 @app.post("/verify")
 async def verify_flow(data: AuditRequest):
+    t0 = time.perf_counter()
     relevant_docs = await asyncio.to_thread(retriever.invoke, data.query)
 
     if not relevant_docs:
@@ -72,7 +73,8 @@ async def verify_flow(data: AuditRequest):
 
     verdict = audit_response(context, data.response, query=data.query)
     print(f"DEBUG - Verdict: {verdict}")
-
+    latency_ms = (time.perf_counter() - t0) * 1000
+    print(f"[LATENCY] {latency_ms:.1f}ms")
     if verdict == "CONTRADICTION":
         return {
             "status": "HALLUCINATION_DETECTED",
