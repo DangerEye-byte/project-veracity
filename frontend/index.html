@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VeracityVault — AI Hallucination Firewall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:      #00FF41;
+      --green-dim:  #00CC33;
+      --green-glow: rgba(0,255,65,0.15);
+      --green-pale: rgba(0,255,65,0.06);
+      --white:      #F0FFF4;
+      --silver:     #B0BEC5;
+      --silver-dk:  #78909C;
+      --black:      #050A05;
+      --black-2:    #0A0F0A;
+      --black-3:    #0F1A0F;
+      --red:        #FF3B3B;
+      --red-dim:    rgba(255,59,59,0.15);
+      --border:     rgba(0,255,65,0.18);
+      --border-dim: rgba(0,255,65,0.08);
+      --panel:      rgba(0,255,65,0.04);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--black); color: var(--white); font-family: 'Rajdhani', sans-serif; overflow-x: hidden; cursor: none; }
+
+    /* Cursor */
+    #cur  { position:fixed; width:10px; height:10px; background:var(--green); border-radius:50%; pointer-events:none; z-index:9999; transform:translate(-50%,-50%); box-shadow:0 0 10px var(--green); transition:width .15s,height .15s; }
+    #ring { position:fixed; width:32px; height:32px; border:1px solid rgba(0,255,65,.4); border-radius:50%; pointer-events:none; z-index:9998; transform:translate(-50%,-50%); }
+    body:has(a:hover) #cur, body:has(button:hover) #cur { width:18px; height:18px; }
+
+    /* Scanlines */
+    body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px); pointer-events:none; z-index:900; }
+
+    /* NAV */
+    nav { position:fixed; top:0; left:0; right:0; z-index:100; height:60px; display:flex; align-items:center; justify-content:space-between; padding:0 48px; background:rgba(5,10,5,.88); backdrop-filter:blur(20px); border-bottom:1px solid var(--border-dim); }
+    .logo { display:flex; align-items:center; gap:10px; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--white); text-decoration:none; }
+    .logo-box { width:26px; height:26px; border:2px solid var(--green); display:flex; align-items:center; justify-content:center; }
+    .logo-box::before { content:''; width:8px; height:8px; background:var(--green); animation:pdot 2s infinite; }
+    .logo span { color:var(--green); }
+    @keyframes pdot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.5)} }
+    .nav-links { display:flex; gap:32px; align-items:center; }
+    .nav-links a { color:var(--silver-dk); text-decoration:none; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:500; transition:color .2s; position:relative; }
+    .nav-links a::after { content:''; position:absolute; bottom:-4px; left:0; right:0; height:1px; background:var(--green); transform:scaleX(0); transition:transform .2s; }
+    .nav-links a:hover { color:var(--green); }
+    .nav-links a:hover::after { transform:scaleX(1); }
+    .nav-cta { border:1px solid var(--green) !important; color:var(--green) !important; padding:7px 18px; font-family:'Rajdhani',sans-serif; font-size:12px !important; letter-spacing:2px; cursor:none; background:transparent; transition:background .2s,box-shadow .2s !important; }
+    .nav-cta:hover { background:var(--green-glow) !important; box-shadow:0 0 16px rgba(0,255,65,.3); }
+    .nav-cta::after { display:none !important; }
+
+    /* HERO */
+    .hero { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:120px 48px 100px; position:relative; overflow:hidden; }
+    .hero-grid { position:absolute; inset:0; background-image:linear-gradient(rgba(0,255,65,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,65,.04) 1px,transparent 1px); background-size:60px 60px; mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black 30%,transparent 100%); }
+    .hero-orb { position:absolute; width:700px; height:700px; background:radial-gradient(circle,rgba(0,255,65,.07) 0%,transparent 70%); border-radius:50%; top:50%; left:50%; transform:translate(-50%,-50%); animation:breathe 7s ease-in-out infinite; }
+    @keyframes breathe { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.08)} }
+
+    .badge { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--border); padding:5px 16px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green); letter-spacing:2px; margin-bottom:28px; background:var(--green-pale); animation:fup .7s ease both; }
+    .badge::before { content:''; width:6px; height:6px; background:var(--green); border-radius:50%; animation:pdot 1.5s infinite; }
+
+    h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(64px,10vw,140px); line-height:.92; text-align:center; letter-spacing:4px; margin-bottom:24px; animation:fup .7s .1s ease both; }
+    h1 .g { color:var(--green); display:block; }
+    h1 .w { color:var(--white); display:block; }
+    h1 .o { display:block; -webkit-text-stroke:2px rgba(255,255,255,.15); color:transparent; }
+
+    .hero-sub { font-size:17px; font-weight:300; color:var(--silver); text-align:center; max-width:540px; line-height:1.75; margin-bottom:44px; letter-spacing:.3px; animation:fup .7s .2s ease both; }
+    .hero-acts { display:flex; gap:14px; align-items:center; animation:fup .7s .3s ease both; }
+
+    @keyframes fup { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+
+    .btn-p { background:var(--green); color:var(--black); border:none; padding:13px 34px; font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:700; letter-spacing:3px; text-transform:uppercase; cursor:none; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:box-shadow .2s,transform .2s; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%); }
+    .btn-p:hover { box-shadow:0 0 28px rgba(0,255,65,.5),0 0 56px rgba(0,255,65,.2); transform:translateY(-2px); }
+    .btn-s { background:transparent; color:var(--silver); border:1px solid var(--border); padding:13px 34px; font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:500; letter-spacing:3px; text-transform:uppercase; cursor:none; text-decoration:none; transition:color .2s,border-color .2s; }
+    .btn-s:hover { color:var(--green); border-color:var(--green); }
+
+    /* Ticker */
+    .ticker { position:absolute; bottom:0; left:0; right:0; border-top:1px solid var(--border-dim); background:rgba(0,0,0,.5); padding:10px 0; overflow:hidden; }
+    .track { display:flex; gap:56px; animation:scroll 28s linear infinite; white-space:nowrap; }
+    @keyframes scroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    .ti { display:inline-flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--silver-dk); }
+    .tag { padding:2px 8px; font-size:10px; letter-spacing:1px; }
+    .tv { background:rgba(0,255,65,.1); color:var(--green); border:1px solid rgba(0,255,65,.3); }
+    .th { background:var(--red-dim); color:var(--red); border:1px solid rgba(255,59,59,.3); }
+
+    /* STATS */
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--border-dim); border-bottom:1px solid var(--border-dim); background:var(--black-2); }
+    .si { padding:36px 32px; border-right:1px solid var(--border-dim); position:relative; overflow:hidden; }
+    .si:last-child { border-right:none; }
+    .si::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--green),transparent); transform:translateX(-100%); transition:transform .5s; }
+    .si:hover::before { transform:translateX(0); }
+    .sn { font-family:'Bebas Neue',sans-serif; font-size:52px; color:var(--green); line-height:1; letter-spacing:2px; }
+    .sl { font-size:12px; color:var(--silver-dk); letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+    /* SECTIONS */
+    section { padding:96px 48px; max-width:1280px; margin:0 auto; }
+    .stag { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green); letter-spacing:3px; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:12px; }
+    .stag::before { content:''; width:28px; height:1px; background:var(--green); }
+    h2 { font-family:'Bebas Neue',sans-serif; font-size:clamp(40px,5vw,68px); letter-spacing:3px; line-height:1; margin-bottom:16px; }
+    h2 span { color:var(--green); }
+    .sdesc { font-size:16px; color:var(--silver); max-width:520px; line-height:1.8; }
+
+    /* HOW IT WORKS */
+    .how-grid { display:grid; grid-template-columns:1fr 1fr; gap:72px; margin-top:56px; align-items:start; }
+    .steps { display:flex; flex-direction:column; }
+    .step { display:flex; gap:22px; padding:24px 0; border-bottom:1px solid var(--border-dim); transition:padding-left .3s; cursor:default; }
+    .step:hover { padding-left:10px; }
+    .step:last-child { border-bottom:none; }
+    .snum { font-family:'Bebas Neue',sans-serif; font-size:44px; color:var(--border); line-height:1; min-width:56px; transition:color .3s; }
+    .step:hover .snum { color:var(--green); }
+    .stitle { font-size:18px; font-weight:700; letter-spacing:1px; margin-bottom:6px; }
+    .sdsc { font-size:14px; color:var(--silver); line-height:1.7; }
+
+    /* Terminal */
+    .term { background:var(--black-2); border:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:13px; box-shadow:0 0 48px rgba(0,255,65,.07); }
+    .term-bar { background:var(--black-3); padding:10px 14px; display:flex; align-items:center; gap:7px; border-bottom:1px solid var(--border-dim); }
+    .td { width:10px; height:10px; border-radius:50%; }
+    .tr { background:#FF5F57; } .ty { background:#FFBD2E; } .tg { background:var(--green); }
+    .tlbl { margin-left:6px; font-size:10px; color:var(--silver-dk); letter-spacing:2px; }
+    .term-body { padding:20px; display:flex; flex-direction:column; gap:12px; }
+    .tl { display:flex; gap:10px; align-items:flex-start; }
+    .tp { color:var(--green); }
+    .tt { color:var(--silver); line-height:1.6; }
+    .tt .hal { color:var(--red); text-decoration:line-through; text-decoration-color:rgba(255,59,59,.6); }
+    .tt .cor { color:var(--green); border-bottom:1px solid var(--green-dim); }
+    .tverd { margin-top:2px; padding:6px 14px; font-size:10px; letter-spacing:1.5px; display:inline-flex; align-items:center; gap:7px; }
+    .tc  { background:var(--red-dim); color:var(--red); border:1px solid rgba(255,59,59,.3); }
+    .tok { background:var(--green-pale); color:var(--green); border:1px solid var(--border); }
+
+    /* FEATURES */
+    .feat-section { background:var(--black-2); padding:96px 0; }
+    .feat-inner { max-width:1280px; margin:0 auto; padding:0 48px; }
+    .feat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border-dim); margin-top:56px; border:1px solid var(--border-dim); }
+    .fc { background:var(--black-2); padding:36px 28px; position:relative; overflow:hidden; transition:background .3s; }
+    .fc:hover { background:var(--panel); }
+    .fc::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--green),transparent); transform:scaleX(0); transition:transform .4s; }
+    .fc:hover::after { transform:scaleX(1); }
+    .fi { width:44px; height:44px; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; margin-bottom:18px; font-size:18px; position:relative; }
+    .fi::before { content:attr(data-i); position:absolute; top:-7px; right:-7px; font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--green); background:var(--black); padding:1px 4px; border:1px solid var(--border); }
+    .ftitle { font-size:17px; font-weight:700; letter-spacing:1px; margin-bottom:10px; }
+    .fdesc { font-size:13px; color:var(--silver); line-height:1.7; }
+
+    /* ARCH */
+    .pipe-wrap { margin-top:56px; display:flex; flex-direction:column; gap:0; }
+    .pipe-row { display:grid; align-items:stretch; border-bottom:1px solid var(--border-dim); }
+    .pipe-row:last-child { border-bottom:none; }
+    .pipe-layer-label {
+      font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--silver-dk);
+      letter-spacing:2px; text-transform:uppercase; writing-mode:vertical-rl;
+      text-orientation:mixed; transform:rotate(180deg);
+      display:flex; align-items:center; justify-content:center;
+      padding:16px 0; border-right:1px solid var(--border-dim);
+      min-width:36px; background:rgba(0,0,0,.2);
+    }
+    .pipe-cells { display:flex; flex:1; flex-wrap:wrap; }
+    .pipe-cell {
+      flex:1; min-width:140px; padding:18px 20px;
+      border-right:1px solid var(--border-dim);
+      position:relative; transition:background .2s;
+    }
+    .pipe-cell:last-child { border-right:none; }
+    .pipe-cell:hover { background:var(--panel); }
+    .pipe-cell::after {
+      content:''; position:absolute; bottom:0; left:0; right:0; height:2px;
+      background:linear-gradient(90deg,transparent,var(--green),transparent);
+      transform:scaleX(0); transition:transform .4s;
+    }
+    .pipe-cell:hover::after { transform:scaleX(1); }
+    .pc-tag {
+      font-family:'JetBrains Mono',monospace; font-size:9px;
+      color:var(--green); letter-spacing:1.5px; text-transform:uppercase;
+      margin-bottom:6px; display:flex; align-items:center; gap:6px;
+    }
+    .pc-tag::before { content:''; width:4px; height:4px; background:var(--green); border-radius:50%; flex-shrink:0; }
+    .pc-name { font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:700; color:var(--white); margin-bottom:4px; letter-spacing:.5px; }
+    .pc-desc { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--silver-dk); line-height:1.6; }
+    .pc-highlight { border-color:var(--green) !important; background:var(--green-pale) !important; }
+    .pc-highlight .pc-tag { color:var(--green); }
+    .pc-highlight .pc-name { color:var(--green); }
+    .pipe-arrow-row {
+      display:flex; align-items:center; justify-content:center;
+      padding:10px 0; gap:8px;
+      border-bottom:1px solid var(--border-dim);
+    }
+    .pipe-arrow-row span {
+      font-family:'JetBrains Mono',monospace; font-size:10px;
+      color:var(--silver-dk); letter-spacing:1px;
+    }
+    .pipe-arrow-line {
+      flex:1; max-width:400px; height:1px;
+      background:linear-gradient(90deg, var(--border-dim), var(--green), var(--border-dim));
+      position:relative;
+    }
+    .pipe-arrow-line::after {
+      content:'▶'; position:absolute; right:-6px; top:50%;
+      transform:translateY(-50%); color:var(--green); font-size:8px;
+    }
+
+    /* CTA */
+    .cta { text-align:center; padding:112px 48px; position:relative; overflow:hidden; }
+    .cta::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 60% 60% at 50% 50%,rgba(0,255,65,.05) 0%,transparent 70%); }
+    .cta h2 { font-size:clamp(48px,7vw,96px); letter-spacing:4px; margin-bottom:20px; position:relative; }
+    .cta p { font-size:17px; color:var(--silver); margin-bottom:44px; position:relative; }
+
+    /* FOOTER */
+    footer { border-top:1px solid var(--border-dim); padding:40px 48px; display:flex; align-items:center; justify-content:space-between; }
+    .fl { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; color:var(--silver-dk); }
+    .fl span { color:var(--green); }
+    .fc2 { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--silver-dk); }
+    .flinks { display:flex; gap:20px; }
+    .flinks a { font-size:12px; color:var(--silver-dk); text-decoration:none; transition:color .2s; }
+    .flinks a:hover { color:var(--green); }
+
+    /* Reveal */
+    .rev { opacity:0; transform:translateY(28px); transition:opacity .6s,transform .6s; }
+    .rev.vis { opacity:1; transform:none; }
+
+    @media(max-width:900px) {
+      nav { padding:0 20px; }
+      .nav-links { display:none; }
+      .hero { padding:100px 20px 90px; }
+      .stats { grid-template-columns:repeat(2,1fr); }
+      section { padding:60px 20px; }
+      .how-grid { grid-template-columns:1fr; gap:36px; }
+      .feat-grid { grid-template-columns:1fr; }
+      .pipe-row { grid-template-columns:28px 1fr !important; }
+      .pipe-cell { min-width:100%; border-right:none; border-bottom:1px solid var(--border-dim); }
+      .pipe-cell:last-child { border-bottom:none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="cur"></div>
+  <div id="ring"></div>
+
+  <nav>
+    <a href="/" class="logo"><div class="logo-box"></div>Veracity<span>Vault</span></a>
+    <div class="nav-links">
+      <a href="#how">How It Works</a>
+      <a href="#features">Features</a>
+      <a href="#arch">Architecture</a>
+      <a href="/chat.html" class="nav-cta">Launch Demo</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-grid"></div>
+    <div class="hero-orb"></div>
+    <div class="badge">● LIVE HALLUCINATION DETECTION SYSTEM</div>
+    <h1>
+      <span class="o">AI SAYS</span>
+      <span class="g">ANYTHING.</span>
+      <span class="w">WE VERIFY</span>
+      <span class="g">EVERYTHING.</span>
+    </h1>
+    <p class="hero-sub">VeracityVault intercepts AI responses in real-time, cross-references them against your private knowledge base, and surgically corrects hallucinations before they reach your users.</p>
+    <div class="hero-acts">
+      <a href="/chat.html" class="btn-p">⚡ Launch Demo</a>
+      <a href="#how" class="btn-s">See How It Works</a>
+    </div>
+    <div class="ticker">
+      <div class="track" id="track"></div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="si rev"><div class="sn" data-t="98">0</div><div class="sl">% Detection Accuracy</div></div>
+    <div class="si rev"><div class="sn" data-t="12">0</div><div class="sl">ms Avg Audit Latency</div></div>
+    <div class="si rev"><div class="sn" data-t="3">0</div><div class="sl">Verification Layers</div></div>
+    <div class="si rev"><div class="sn" data-t="100">0</div><div class="sl">% Source-grounded</div></div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <section id="how">
+    <div class="stag">Process</div>
+    <h2>HOW IT <span>WORKS</span></h2>
+    <p class="sdesc">Three-layer verification pipeline that catches hallucinations at the semantic, numerical, and logical level.</p>
+    <div class="how-grid">
+      <div class="steps rev">
+        <div class="step"><div class="snum">01</div><div><div class="stitle">Query Routing</div><div class="sdsc">Your query hits the Ensemble Retriever — BM25 for keyword precision combined with Qdrant vector search for semantic similarity. The best-matching ground truth document is surfaced.</div></div></div>
+        <div class="step"><div class="snum">02</div><div><div class="stitle">AI Response Generation</div><div class="sdsc">Gemini streams a response token by token through our Node.js server. The full response is captured server-side — your Gemini API key never touches the browser.</div></div></div>
+        <div class="step"><div class="snum">03</div><div><div class="stitle">3-Layer Audit</div><div class="sdsc">Topic relevance via semantic similarity → NLI contradiction detection via DeBERTa → verdict rendered with source reference attached.</div></div></div>
+        <div class="step"><div class="snum">04</div><div><div class="stitle">Surgical Correction</div><div class="sdsc">Hallucinated content is struck through in red and replaced with verified text in green. Hovering reveals the exact source document.</div></div></div>
+      </div>
+      <div class="term rev">
+        <div class="term-bar"><div class="td tr"></div><div class="td ty"></div><div class="td tg"></div><span class="tlbl">AUDIT_LOG — LIVE</span></div>
+        <div class="term-body">
+          <div class="tl"><span class="tp">›</span><span class="tt" style="color:var(--silver-dk);font-size:11px">QUERY: "What is the GDPR erasure deadline?"</span></div>
+          <div class="tl"><span class="tp">›</span><span class="tt">Streaming Gemini response...</span></div>
+          <div class="tl"><span class="tp">›</span><span class="tt">Doc retrieved: <span style="color:var(--green)">GDPR_Article_17</span></span></div>
+          <div class="tl"><span class="tp">›</span><span class="tt">Claim: "must delete within <span class="hal">7 days</span><span class="cor"> 30 days</span>"</span></div>
+          <div class="tl"><span class="tp">›</span><span class="tt">NLI contra=0.96 | entail=0.01</span></div>
+          <div style="padding-left:22px"><span class="tverd tc">⚠ HALLUCINATION_DETECTED</span></div>
+          <div style="padding-left:22px;margin-top:6px"><span class="tverd tok">✓ CORRECTED → GDPR Art.17</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <div class="feat-section" id="features">
+    <div class="feat-inner">
+      <div class="stag">Capabilities</div>
+      <h2>BUILT TO BE <span>UNBEATABLE</span></h2>
+      <p class="sdesc">Every layer engineered to handle edge cases that break simpler approaches.</p>
+      <div class="feat-grid rev">
+        <div class="fc"><div class="fi" data-i="01">🧠</div><div class="ftitle">Semantic Topic Gating</div><div class="fdesc">Before any NLI runs, we verify the retrieved document is actually about the query. Prevents false contradictions from loosely related documents.</div></div>
+        <div class="fc"><div class="fi" data-i="02">⚡</div><div class="ftitle">Ensemble Retrieval</div><div class="fdesc">BM25 keyword matching (0.3 weight) + Qdrant vector search (0.7 weight) combined for maximum recall across lexical and semantic queries.</div></div>
+        <div class="fc"><div class="fi" data-i="03">🔬</div><div class="ftitle">DeBERTa NLI Engine</div><div class="fdesc">cross-encoder/nli-deberta-v3-small — a discriminative classifier. 50ms vs 5s for generative LLM approaches. Deterministic. No prompt engineering.</div></div>
+        <div class="fc"><div class="fi" data-i="04">🎯</div><div class="ftitle">Ambiguity Detection</div><div class="fdesc">Claims too vague to verify return NEUTRAL. Partial information is never penalised as wrong. Benefit of the doubt is baked in by design.</div></div>
+        <div class="fc"><div class="fi" data-i="05">🔐</div><div class="ftitle">Secure Node Proxy</div><div class="fdesc">Gemini API key lives in .env on the server — never exposed to the browser. All AI calls proxied server-side through Express.</div></div>
+        <div class="fc"><div class="fi" data-i="06">🏗️</div><div class="ftitle">Private Knowledge Base</div><div class="fdesc">Your documents never leave your infrastructure. Qdrant runs locally. The entire verification pipeline is fully self-hosted and air-gap compatible.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <section id="arch">
+    <div class="stag">System</div>
+    <h2>THE <span>ARCHITECTURE</span></h2>
+    <p class="sdesc">Four-layer pipeline — browser to Node.js to Gemini to FastAPI auditor to verified response.</p>
+
+    <div class="pipe-wrap rev" style="border:1px solid var(--border-dim);">
+
+      <!-- LAYER 1: FRONTEND -->
+      <div class="pipe-row" style="grid-template-columns:36px 1fr;">
+        <div class="pipe-layer-label">Frontend</div>
+        <div class="pipe-cells">
+          <div class="pipe-cell">
+            <div class="pc-tag">Static HTML</div>
+            <div class="pc-name">Landing Page</div>
+            <div class="pc-desc">index.html</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">Chat UI · SSE</div>
+            <div class="pc-name">Live Demo</div>
+            <div class="pc-desc">chat.html · DM Sans · Playfair Display</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">Conversation</div>
+            <div class="pc-name">Context Memory</div>
+            <div class="pc-desc">History array · capped 20 turns · browser memory</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARROW -->
+      <div class="pipe-arrow-row">
+        <div class="pipe-arrow-line"></div>
+        <span>POST /api/chat · { query, history[] }</span>
+        <div class="pipe-arrow-line"></div>
+      </div>
+
+      <!-- LAYER 2: NODE.JS -->
+      <div class="pipe-row" style="grid-template-columns:36px 1fr;">
+        <div class="pipe-layer-label">Node.js</div>
+        <div class="pipe-cells">
+          <div class="pipe-cell">
+            <div class="pc-tag">Server · port 3000</div>
+            <div class="pc-name">Express</div>
+            <div class="pc-desc">CORS · static serve · env validation</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">SSE Stream</div>
+            <div class="pc-name">Gemini Proxy</div>
+            <div class="pc-desc">routes/chat.js · API key server-side only</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">External API</div>
+            <div class="pc-name">Gemini 2.5 Flash Lite</div>
+            <div class="pc-desc">temp 0.9 · 200 tokens · streams to browser</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">FastAPI bridge</div>
+            <div class="pc-name">Verify Proxy</div>
+            <div class="pc-desc">routes/verify.js · 15s timeout</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARROW -->
+      <div class="pipe-arrow-row">
+        <div class="pipe-arrow-line"></div>
+        <span>POST /verify · { query, response }</span>
+        <div class="pipe-arrow-line"></div>
+      </div>
+
+      <!-- LAYER 3: PYTHON / FASTAPI -->
+      <div class="pipe-row" style="grid-template-columns:36px 1fr;">
+        <div class="pipe-layer-label">Python</div>
+        <div class="pipe-cells">
+          <div class="pipe-cell">
+            <div class="pc-tag">API · port 8000</div>
+            <div class="pc-name">FastAPI</div>
+            <div class="pc-desc">main.py · uvicorn · async · lifespan init</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">Retrieval</div>
+            <div class="pc-name">Ensemble Retriever</div>
+            <div class="pc-desc">BM25 0.3 + Qdrant 0.7 · LangChain</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">Verification</div>
+            <div class="pc-name">Auditor Pipeline</div>
+            <div class="pc-desc">Sim gates → numerical check → NLI</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARROW -->
+      <div class="pipe-arrow-row">
+        <div class="pipe-arrow-line"></div>
+        <span>Shared embedding model · vector + BM25 index</span>
+        <div class="pipe-arrow-line"></div>
+      </div>
+
+      <!-- LAYER 4: MODELS + STORAGE -->
+      <div class="pipe-row" style="grid-template-columns:36px 1fr;">
+        <div class="pipe-layer-label">Models</div>
+        <div class="pipe-cells">
+          <div class="pipe-cell">
+            <div class="pc-tag">Embeddings · HuggingFace</div>
+            <div class="pc-name">all-MiniLM-L6-v2</div>
+            <div class="pc-desc">Shared instance · semantic similarity gates</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">NLI Classifier · HuggingFace</div>
+            <div class="pc-name">DeBERTa-v3-small</div>
+            <div class="pc-desc">cross-encoder · entail / contra / neutral</div>
+          </div>
+          <div class="pipe-cell">
+            <div class="pc-tag">Numerical detector</div>
+            <div class="pc-name">Custom regex extractor</div>
+            <div class="pc-desc">Days · dollars · temps · percent · multipliers</div>
+          </div>
+          <div class="pipe-cell pc-highlight">
+            <div class="pc-tag">Vector store · Docker</div>
+            <div class="pc-name">Qdrant</div>
+            <div class="pc-desc">port 6333 · local · veracity_vault collection</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="cta">
+    <h2 class="rev">READY TO <span>VERIFY?</span></h2>
+    <p class="rev">Watch the system catch hallucinations live.</p>
+    <a href="/chat.html" class="btn-p rev">⚡ Open Live Demo</a>
+  </div>
+
+  <footer>
+    <div class="fl">Veracity<span>Vault</span></div>
+    <div class="fc2">© 2025 — AI HALLUCINATION FIREWALL</div>
+    <div class="flinks"><a href="#how">Docs</a><a href="/chat.html">Demo</a></div>
+  </footer>
+
+  <script>
+    // Cursor
+    const cur = document.getElementById('cur'), ring = document.getElementById('ring');
+    let mx=0,my=0,rx=0,ry=0;
+    document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;});
+    (function a(){cur.style.cssText=`left:${mx}px;top:${my}px`;rx+=(mx-rx)*.13;ry+=(my-ry)*.13;ring.style.cssText=`left:${rx}px;top:${ry}px`;requestAnimationFrame(a);})();
+
+    // Ticker
+    const td=[
+      {t:'HIPAA breach notification is 30 days',v:'HALLUCINATION',c:'th'},
+      {t:'Federal minimum wage is $7.25/hr',v:'VERIFIED',c:'tv'},
+      {t:'GDPR Art.17 deletion within 30 days',v:'VERIFIED',c:'tv'},
+      {t:'ADA applies to all employers',v:'HALLUCINATION',c:'th'},
+      {t:'Refund policy is 20 days',v:'VERIFIED',c:'tv'},
+      {t:'SOX certification penalty is $10M',v:'HALLUCINATION',c:'th'},
+      {t:'CCPA response deadline is 45 days',v:'VERIFIED',c:'tv'},
+      {t:'Server room must be 18°C',v:'VERIFIED',c:'tv'},
+    ];
+    const tr=document.getElementById('track');
+    const html=td.map(d=>`<span class="ti"><span class="tag ${d.c}">${d.v}</span>${d.t}</span>`).join('');
+    tr.innerHTML=html+html;
+
+    // Reveal
+    const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('vis');}),{threshold:.1});
+    document.querySelectorAll('.rev').forEach(r=>obs.observe(r));
+
+    // Counters
+    const cobs=new IntersectionObserver(es=>es.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const el=e.target,t=+el.dataset.t;let c=0;
+      const s=t/40,ti=setInterval(()=>{c=Math.min(c+s,t);el.textContent=Math.floor(c)+(t>=98?t===3?'':'%':'');if(c>=t)clearInterval(ti);},30);
+      cobs.unobserve(el);
+    }),{threshold:.5});
+    document.querySelectorAll('.sn[data-t]').forEach(c=>cobs.observe(c));
+  </script>
+</body>
+</html>

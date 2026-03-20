@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VeracityVault — Live Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green:      #00FF41;
+      --green-dim:  #00CC33;
+      --green-glow: rgba(0,255,65,0.15);
+      --green-pale: rgba(0,255,65,0.06);
+      --g-ultra:    rgba(0,255,65,0.03);
+      --white:      #F0FFF4;
+      --silver:     #B0BEC5;
+      --silver-dk:  #78909C;
+      --black:      #050A05;
+      --black-2:    #0A0F0A;
+      --black-3:    #0F1A0F;
+      --red:        #FF3B3B;
+      --red-pale:   rgba(255,59,59,0.08);
+      --red-dim:    rgba(255,59,59,0.15);
+      --amber:      #FFB300;
+      --amber-pale: rgba(255,179,0,0.08);
+      --panel:      rgba(0,255,65,0.04);
+      --border:     rgba(0,255,65,0.18);
+      --border-dim: rgba(0,255,65,0.08);
+      --shadow:     0 8px 32px rgba(0,0,0,0.6);
+      --shadow-g:   0 0 40px rgba(0,255,65,0.12);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background: var(--black);
+      color: var(--white);
+      font-family: 'Sora', sans-serif;
+      cursor: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Background ambience ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 20%, rgba(0,255,65,0.1) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 80% 80%, rgba(0,120,255,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 50% 50%, rgba(0,255,65,0.1) 0%, transparent 70%);
+    }
+
+    /* ── Custom cursor ── */
+    #cur {
+      position: fixed; width: 8px; height: 8px;
+      background: var(--green); border-radius: 50%;
+      pointer-events: none; z-index: 9999;
+      transform: translate(-50%,-50%);
+      box-shadow: 0 0 12px var(--green), 0 0 24px rgba(0,255,65,0.1);
+      transition: width .15s, height .15s;
+    }
+    #ring {
+      position: fixed; width: 28px; height: 28px;
+      border: 1px solid rgba(0,255,65,0.1); border-radius: 50%;
+      pointer-events: none; z-index: 9998;
+      transform: translate(-50%,-50%);
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      position: relative; z-index: 10;
+      height: 58px; min-height: 58px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px;
+      background: rgba(6,11,20,0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--green-glow), transparent);
+    }
+
+    .tbl { display: flex; align-items: center; gap: 16px; }
+
+    .logo {
+      font-family: 'Instrument Serif', serif;
+      font-size: 20px; font-style: italic;
+      color: var(--white); text-decoration: none;
+      letter-spacing: 0.3px;
+      display: flex; align-items: center; gap: 2px;
+    }
+    .logo span { color: var(--green); font-style: normal; }
+
+    .tdiv { width: 1px; height: 20px; background: var(--border); }
+
+    .tlbl {
+      font-size: 11px; font-weight: 500;
+      color: var(--silver-dk); letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .tbr { display: flex; align-items: center; gap: 12px; }
+
+    .stat-chips { display: flex; gap: 6px; }
+    .chip {
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 12px;
+      background: rgba(0,255,65,0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 11px; font-weight: 500; color: var(--silver-dk);
+      backdrop-filter: blur(8px);
+    }
+    .cn { font-weight: 700; font-size: 12px; }
+    .cv .cn { color: var(--green); }
+    .ch .cn { color: var(--red); }
+    .cn2 .cn { color: var(--amber); }
+
+    .s-ind {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600;
+      color: var(--green); letter-spacing: 0.3px;
+      padding: 4px 12px;
+      background: var(--green-pale);
+      border: 1px solid var(--border-dim);
+      border-radius: 20px;
+    }
+    .sdot {
+      width: 6px; height: 6px;
+      background: var(--green); border-radius: 50%;
+      animation: pdot 2s infinite;
+    }
+    @keyframes pdot {
+      0%,100% { opacity:1; box-shadow: 0 0 4px var(--green); }
+      50% { opacity:.3; box-shadow: none; }
+    }
+
+    .back {
+      font-size: 12px; font-weight: 500;
+      color: var(--silver-dk); text-decoration: none;
+      padding: 5px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: color .2s, border-color .2s, background .2s;
+      cursor: none;
+    }
+    .back:hover { color: var(--white); border-color: rgba(255,255,255,0.2); background: var(--panel); }
+
+    /* ── MAIN LAYOUT ── */
+    .layout {
+      flex: 1; display: grid;
+      grid-template-columns: 1fr 360px;
+      min-height: 0; overflow: hidden;
+      position: relative; z-index: 1;
+    }
+
+    /* ── CHAT PANEL ── */
+    .chat {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border);
+      min-height: 0;
+    }
+
+    .chat-hdr {
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,16,32,0.6);
+      backdrop-filter: blur(12px);
+    }
+    .chat-hdr-t {
+      font-size: 12px; font-weight: 600;
+      color: var(--silver); letter-spacing: 0.5px;
+    }
+    .mbadge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--green);
+      background: var(--green-pale);
+      border: 1px solid var(--border-dim);
+      padding: 3px 10px; border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Messages ── */
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 28px 24px;
+      display: flex; flex-direction: column; gap: 24px;
+      scroll-behavior: smooth;
+    }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .msg { display: flex; gap: 14px; animation: msgin .35s cubic-bezier(.2,0,.1,1); }
+    @keyframes msgin { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: none; } }
+
+    .av {
+      width: 34px; height: 34px; min-width: 34px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 700;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .av-u {
+      background: linear-gradient(135deg, rgba(0,255,65,0.18), rgba(0,255,65,0.1));
+      border: 1px solid var(--border);
+      color: var(--green);
+    }
+    .av-a {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--silver);
+    }
+
+    .mbody { flex: 1; min-width: 0; }
+    .mrole {
+      font-size: 10px; font-weight: 600;
+      color: var(--silver-dk); letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .mtime { color: var(--border); font-weight: 400; letter-spacing: 0.5px; }
+
+    .mcont {
+      font-size: 14.5px; line-height: 1.85;
+      color: #CBD5E1;
+      padding: 16px 20px;
+      background: var(--black-2);
+      border: 1px solid var(--border);
+      border-radius: 0 12px 12px 12px;
+      position: relative;
+      transition: border-color .3s;
+    }
+    .msg.user .mcont {
+      color: var(--white);
+      background: linear-gradient(135deg, rgba(0,255,65,0.08), rgba(0,255,65,0.03));
+      border-color: var(--border-dim);
+      border-radius: 12px 0 12px 12px;
+    }
+    .msg.user { flex-direction: row-reverse; }
+    .msg.user .mrole { flex-direction: row-reverse; }
+
+    /* ── Hallucination styles ── */
+    .hal {
+      color: var(--red);
+      background: var(--red-pale);
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,59,59,0.3);
+      padding: 1px 4px;
+      border-radius: 3px;
+      cursor: help;
+    }
+    .cor {
+      color: var(--green);
+      background: var(--green-pale);
+      border-bottom: 1px solid var(--green-dim);
+      padding: 1px 4px 2px;
+      border-radius: 3px 3px 0 0;
+      cursor: help;
+      position: relative; display: inline;
+    }
+    .cor:hover .tip { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+    .tip {
+      position: absolute;
+      bottom: calc(100% + 10px); left: 50%;
+      transform: translateX(-50%) translateY(6px);
+      background: var(--black-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--green);
+      min-width: 220px; max-width: 320px; white-space: normal;
+      z-index: 200; line-height: 1.7;
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s;
+      box-shadow: var(--shadow), var(--shadow-g);
+    }
+    .tip::before {
+      content: 'SOURCE DOCUMENT';
+      display: block; font-size: 9px;
+      color: var(--silver-dk); letter-spacing: 2px;
+      margin-bottom: 8px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tip::after {
+      content: ''; position: absolute;
+      top: 100%; left: 50%; transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--border);
+    }
+
+    /* ── Audit badge ── */
+    .abadge {
+      display: inline-flex; align-items: center; gap: 7px;
+      margin-top: 12px; padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+    }
+    .ab-v { background: rgba(0,255,65,0.1); border: 1px solid var(--border); color: var(--green); }
+    .ab-h { background: var(--red-pale); border: 1px solid rgba(255,59,59,0.3); color: var(--red); }
+    .ab-n { background: var(--amber-pale); border: 1px solid rgba(255,179,0,0.08); color: var(--amber); }
+
+    /* ── Typing indicator ── */
+    .typing {
+      display: flex; gap: 5px; align-items: center;
+      padding: 6px 0;
+    }
+    .td2 {
+      width: 7px; height: 7px;
+      background: var(--green); border-radius: 50%;
+      animation: typ 1.4s infinite;
+      opacity: .4;
+    }
+    .td2:nth-child(2){animation-delay:.2s}
+    .td2:nth-child(3){animation-delay:.4s}
+    @keyframes typ {
+      0%,60%,100% { transform: translateY(0); opacity:.3; }
+      30% { transform: translateY(-6px); opacity:1; }
+    }
+
+    /* ── Blinking cursor ── */
+    .blink {
+      display: inline-block; width: 2px; height: 1em;
+      background: var(--green); margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: bl 1s step-end infinite;
+      border-radius: 1px;
+    }
+    @keyframes bl { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Scan animation ── */
+    @keyframes scan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(500%); }
+    }
+    .scanning .mcont::after {
+      content: '';
+      position: absolute; left: 0; right: 0; top: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--green), transparent);
+      animation: scan 1s ease-in-out;
+      border-radius: 2px;
+    }
+
+    /* ── Welcome card ── */
+    .wcard {
+      background: linear-gradient(135deg, rgba(0,255,65,0.1), rgba(0,255,65,0.03));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      max-width: 520px;
+      position: relative; overflow: hidden;
+    }
+    .wcard::before {
+      content: '';
+      position: absolute; top: -40px; right: -40px;
+      width: 160px; height: 160px;
+      background: radial-gradient(circle, rgba(0,255,65,0.08), transparent 70%);
+      pointer-events: none;
+    }
+    .wtitle {
+      font-family: 'Instrument Serif', serif;
+      font-size: 22px; font-style: italic;
+      color: var(--green); margin-bottom: 10px;
+      letter-spacing: 0.3px;
+    }
+    .wdesc {
+      font-size: 13.5px; color: var(--silver);
+      line-height: 1.75; margin-bottom: 18px;
+    }
+    .wtags { display: flex; gap: 7px; flex-wrap: wrap; }
+    .wtag {
+      font-size: 11px; font-weight: 500;
+      padding: 4px 11px;
+      background: rgba(0,255,65,0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--silver-dk);
+      transition: color .2s, border-color .2s;
+    }
+    .wtag:hover { color: var(--green); border-color: var(--border-dim); }
+
+    /* ── Suggested prompts ── */
+    .suggests {
+      padding: 12px 24px;
+      display: flex; gap: 8px; flex-wrap: wrap;
+      border-top: 1px solid var(--border);
+      background: rgba(6,11,20,0.5);
+      backdrop-filter: blur(8px);
+    }
+    .slbl {
+      font-size: 10px; font-weight: 600;
+      color: var(--silver-dk); letter-spacing: 1px;
+      text-transform: uppercase; width: 100%; margin-bottom: 2px;
+    }
+    .pc {
+      font-family: 'Sora', sans-serif;
+      font-size: 12px; font-weight: 400;
+      padding: 6px 14px;
+      background: rgba(0,255,65,0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--silver);
+      cursor: none;
+      transition: all .2s;
+    }
+    .pc:hover {
+      color: var(--white);
+      border-color: rgba(255,255,255,0.2);
+      background: var(--panel);
+      transform: translateY(-1px);
+    }
+
+    /* ── Input bar ── */
+    .ibar {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 10px; align-items: flex-end;
+      background: rgba(6,11,20,0.7);
+      backdrop-filter: blur(12px);
+    }
+    .iwrap {
+      flex: 1; position: relative;
+      background: var(--black-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .iwrap:focus-within {
+      border-color: var(--border);
+      box-shadow: 0 0 0 3px rgba(0,255,65,0.1);
+    }
+    #inp {
+      width: 100%; background: transparent; border: none; outline: none;
+      color: var(--white);
+      font-family: 'Sora', sans-serif; font-size: 14px;
+      padding: 13px 16px;
+      resize: none; min-height: 48px; max-height: 120px;
+      cursor: none; border-radius: 14px;
+      line-height: 1.5;
+    }
+    #inp::placeholder { color: var(--silver-dk); }
+    .sbtn {
+      background: var(--green);
+      border: none; cursor: none;
+      width: 46px; height: 46px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; color: var(--black);
+      font-weight: 700;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+    .sbtn:hover {
+      box-shadow: 0 0 20px rgba(0,255,65,0.1), 0 4px 12px rgba(0,0,0,0.3);
+      transform: translateY(-1px);
+    }
+    .sbtn:disabled { background: var(--border); color: var(--silver-dk); box-shadow: none; transform: none; }
+
+    /* ── AUDIT PANEL ── */
+    .audit {
+      display: flex; flex-direction: column;
+      background: var(--black-2);
+      border-left: 1px solid var(--border);
+      min-height: 0;
+    }
+
+    .ahdr {
+      padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,16,32,0.8);
+    }
+    .atitle {
+      font-size: 12px; font-weight: 700;
+      color: var(--white); letter-spacing: 0.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .atitle::before {
+      content: '';
+      width: 7px; height: 7px;
+      background: var(--green); border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      animation: pdot 1.5s infinite;
+    }
+    .aclr {
+      font-family: 'Sora', sans-serif;
+      font-size: 11px; font-weight: 500;
+      color: var(--silver-dk); background: none; border: none;
+      cursor: none; letter-spacing: 0.3px;
+      padding: 3px 8px; border-radius: 4px;
+      transition: color .2s, background .2s;
+    }
+    .aclr:hover { color: var(--red); background: var(--red-pale); }
+
+    .alog {
+      flex: 1; overflow-y: auto;
+      padding: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .alog::-webkit-scrollbar { width: 3px; }
+    .alog::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Audit entries ── */
+    .ae {
+      background: var(--black-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      animation: aein .3s cubic-bezier(.2,0,.1,1);
+      position: relative; overflow: hidden;
+    }
+    @keyframes aein { from { opacity:0; transform: translateX(8px); } to { opacity:1; transform: none; } }
+    .ae::before {
+      content: ''; position: absolute;
+      left: 0; top: 0; bottom: 0; width: 3px;
+      border-radius: 10px 0 0 10px;
+    }
+    .ae.v { border-color: rgba(0,255,65,0.1); }
+    .ae.v::before { background: var(--green); }
+    .ae.h { border-color: rgba(255,59,59,0.15); }
+    .ae.h::before { background: var(--red); }
+    .ae.n { border-color: rgba(255,179,0,0.08); }
+    .ae.n::before { background: var(--amber); }
+
+    .aev {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .ae.v .aev { color: var(--green); }
+    .ae.h .aev { color: var(--red); }
+    .ae.n .aev { color: var(--amber); }
+    .aet { color: var(--silver-dk); font-size: 9px; font-weight: 400; letter-spacing: 0; font-family: 'JetBrains Mono', monospace; }
+
+    .aec {
+      font-size: 12px; color: var(--silver); line-height: 1.55;
+      margin-bottom: 4px;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .aesrc {
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid var(--border);
+      font-size: 10px; color: var(--silver-dk);
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+      line-height: 1.5; font-style: italic;
+    }
+
+    /* ── Audit empty state ── */
+    .aempty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; padding: 40px 24px; text-align: center;
+    }
+    .aempty-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: rgba(0,255,65,0.03);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; opacity: .5;
+    }
+    .aempty-txt {
+      font-size: 12px; font-weight: 400;
+      color: var(--silver-dk); line-height: 1.9;
+    }
+
+    /* ── Audit stats ── */
+    .astats {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 8px;
+    }
+    .ast {
+      text-align: center; padding: 10px 6px;
+      background: var(--black-3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color .2s;
+    }
+    .ast.v:hover { border-color: rgba(0,255,65,0.1); }
+    .ast.h:hover { border-color: rgba(255,59,59,0.3); }
+    .ast.n:hover { border-color: rgba(255,179,0,0.08); }
+    .asn { font-size: 28px; font-weight: 700; line-height: 1; }
+    .asl { font-size: 9px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--silver-dk); margin-top: 3px; }
+    .ast.v .asn { color: var(--green); }
+    .ast.h .asn { color: var(--red); }
+    .ast.n .asn { color: var(--amber); }
+
+    /* ── Error banner ── */
+    .err-banner {
+      margin: 0 24px 10px;
+      padding: 10px 16px;
+      background: var(--red-pale);
+      border: 1px solid rgba(255,59,59,0.3);
+      border-radius: 8px;
+      font-size: 12px; color: var(--red);
+      display: none;
+    }
+    .err-banner.show { display: block; }
+  </style>
+</head>
+<body>
+  <div id="cur"></div>
+  <div id="ring"></div>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="tbl">
+      <a href="/" class="logo">Veracity<span>Vault</span></a>
+      <div class="tdiv"></div>
+      <span class="tlbl">Live Demo</span>
+    </div>
+    <div class="tbr">
+      <div class="stat-chips">
+        <div class="chip cv"><span class="cn" id="cv">0</span> Verified</div>
+        <div class="chip ch"><span class="cn" id="ch">0</span> Flagged</div>
+        <div class="chip cn2"><span class="cn" id="cn">0</span> Neutral</div>
+      </div>
+      <div class="s-ind"><div class="sdot"></div>Auditor Online</div>
+      <a href="/" class="back">← Back</a>
+    </div>
+  </div>
+
+  <!-- MAIN LAYOUT -->
+  <div class="layout">
+
+    <!-- CHAT PANEL -->
+    <div class="chat">
+      <div class="chat-hdr">
+        <span class="chat-hdr-t">Hallucination Detection Demo</span>
+        <span class="mbadge">GEMINI + VERACITYVAULT</span>
+      </div>
+
+      <div class="messages" id="msgs">
+        <div class="msg">
+          <div class="av av-a">VV</div>
+          <div class="mbody">
+            <div class="mrole">System <span class="mtime" id="wt"></span></div>
+            <div class="wcard">
+              <div class="wtitle">Hallucination Firewall Active</div>
+              <div class="wdesc">Ask anything about our knowledge base. VeracityVault detects and corrects AI hallucinations in real-time — responses stream through our Node.js server, your API key never touches this page.</div>
+              <div class="wtags">
+                <span class="wtag">GDPR</span>
+                <span class="wtag">FLSA</span>
+                <span class="wtag">HIPAA</span>
+                <!-- <span class="wtag">ADA</span> -->
+                <span class="wtag">Refund Policy</span>
+                <span class="wtag">CCPA</span>
+                <span class="wtag">SOX</span>
+                <span class="wtag">FCPA</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="err-banner" id="err"></div>
+
+      <div class="suggests">
+        <div class="slbl">Try these</div>
+        <button class="pc" onclick="usePrompt(this.textContent)">What is the GDPR erasure deadline?</button>
+        <button class="pc" onclick="usePrompt(this.textContent)">What is the federal minimum wage?</button>
+        <button class="pc" onclick="usePrompt(this.textContent)">How long does HIPAA give for breach notification?</button>
+        <button class="pc" onclick="usePrompt(this.textContent)">What is the refund policy?</button>
+        <button class="pc" onclick="usePrompt(this.textContent)">What are the GDPR fine limits?</button>
+        <!-- <button class="pc" onclick="usePrompt(this.textContent)">What does ADA require from employers?</button> -->
+      </div>
+
+      <div class="ibar">
+        <div class="iwrap">
+          <textarea id="inp" placeholder="Ask about regulations, policies, compliance…" rows="1"></textarea>
+        </div>
+        <button class="sbtn" id="sbtn" onclick="send()">↑</button>
+      </div>
+    </div>
+
+    <!-- AUDIT PANEL -->
+    <div class="audit">
+      <div class="ahdr">
+        <span class="atitle">Audit Log</span>
+        <button class="aclr" onclick="clearLog()">Clear</button>
+      </div>
+      <div class="alog" id="alog">
+        <div class="aempty" id="aempty">
+          <div class="aempty-icon">◎</div>
+          <div class="aempty-txt">No audit entries yet.<br>Send a message to begin.</div>
+        </div>
+      </div>
+      <div class="astats">
+        <div class="ast v"><div class="asn" id="sv">0</div><div class="asl">Verified</div></div>
+        <div class="ast h"><div class="asn" id="sh">0</div><div class="asl">Flagged</div></div>
+        <div class="ast n"><div class="asn" id="sn">0</div><div class="asl">Neutral</div></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Cursor ──────────────────────────────────────────────────────────────
+    const cur=document.getElementById('cur'),ring=document.getElementById('ring');
+    let mx=0,my=0,rx=0,ry=0;
+    document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;});
+    (function a(){
+      cur.style.left=mx+'px';cur.style.top=my+'px';
+      rx+=(mx-rx)*.13;ry+=(my-ry)*.13;
+      ring.style.left=rx+'px';ring.style.top=ry+'px';
+      requestAnimationFrame(a);
+    })();
+
+    // ── Init ────────────────────────────────────────────────────────────────
+    document.getElementById('wt').textContent = getTime();
+
+    const inp  = document.getElementById('inp');
+    const sbtn = document.getElementById('sbtn');
+    let busy   = false;
+    // Conversation history — full list of prior turns sent to Gemini each request
+    // Format: [ { role: 'user', text: '...' }, { role: 'model', text: '...' }, ... ]
+    // Browser memory only — cleared on page refresh (stateless server)
+    let conversationHistory = [];
+    let counts = {v:0,h:0,n:0};
+
+    inp.addEventListener('input',()=>{
+      inp.style.height='auto';
+      inp.style.height=Math.min(inp.scrollHeight,120)+'px';
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}
+    });
+
+    function usePrompt(t){ inp.value=t; inp.focus(); }
+
+    // ── Send ────────────────────────────────────────────────────────────────
+    async function send(){
+      const query=inp.value.trim();
+      if(!query||busy) return;
+      busy=true; sbtn.disabled=true;
+      inp.value=''; inp.style.height='auto';
+      hideError();
+
+      addUserMsg(query);
+      const {msgEl, contentEl} = addAIMsg();
+      scrollBottom();
+
+      let fullText = '';
+      try {
+        const res = await fetch('/api/chat', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ query, history: conversationHistory })
+        });
+
+        if(!res.ok){
+          const e = await res.json().catch(()=>({error:'Server error'}));
+          throw new Error(e.error||`HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const dec    = new TextDecoder();
+        let buf      = '';
+        let fullText = '';
+
+        contentEl.innerHTML = '<span class="blink"></span>';
+
+        let currentEvent = '';
+
+        outer: while(true){
+          const {done, value} = await reader.read();
+          if(done) break;
+
+          buf += dec.decode(value, {stream: true});
+          const lines = buf.split('\n');
+          buf = lines.pop();
+
+          for(const line of lines){
+            if(!line.trim()){ currentEvent = ''; continue; }
+
+            if(line.startsWith('event: ')){
+              currentEvent = line.slice(7).trim();
+              continue;
+            }
+
+            if(!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if(!raw) continue;
+
+            let payload;
+            try { payload = JSON.parse(raw); } catch { continue; }
+
+            if(currentEvent === 'token'){
+              fullText += payload.text || '';
+              contentEl.innerHTML = esc(fullText) + '<span class="blink"></span>';
+              scrollBottom();
+
+            } else if(currentEvent === 'done'){
+              fullText = payload.fullText || fullText;
+              contentEl.innerHTML = esc(fullText);
+              msgEl.querySelector('.mbody > div:last-child')?.classList.add('scanning');
+
+            } else if(currentEvent === 'verdict'){
+              setTimeout(()=>{
+                msgEl.querySelector('.mbody > div:last-child')?.classList.remove('scanning');
+              }, 900);
+              handleVerdict(payload, msgEl, contentEl, fullText);
+              break outer;
+
+            } else if(currentEvent === 'error'){
+              throw new Error(payload.message || 'Stream error from server');
+            }
+          }
+        }
+
+      } catch(err){
+        contentEl.innerHTML = esc('Connection error: '+err.message);
+        addBadge(contentEl,'n');
+        addAuditEntry('n', 'Error: '+err.message, '');
+        updateCounts('n');
+        showError('Backend error: '+err.message+'. Make sure Node.js server is running on port 3000.');
+      }
+
+      // Push completed turn to history so next request includes context
+      // We push here (outside try/catch) so it always runs after the turn ends
+      if(fullText) {
+        conversationHistory.push({ role: 'user',  text: query });
+        conversationHistory.push({ role: 'model', text: fullText });
+        // Cap history at 20 turns (10 exchanges) to avoid token overflow
+        if(conversationHistory.length > 20) {
+          conversationHistory = conversationHistory.slice(-20);
+        }
+      }
+      busy=false; sbtn.disabled=false;
+      scrollBottom();
+    }
+
+    // ── Handle verdict ──────────────────────────────────────────────────────
+    function handleVerdict(result, msgEl, contentEl, fullText){
+      if(result.status === 'HALLUCINATION_DETECTED'){
+        annotate(contentEl, fullText, result);
+        addBadge(contentEl,'h');
+        addAuditEntry('h', fullText, result.reference||'');
+        updateCounts('h');
+      } else if(result.status === 'VERIFIED'){
+        addBadge(contentEl,'v');
+        addAuditEntry('v', fullText, result.reference||'');
+        updateCounts('v');
+      } else {
+        addBadge(contentEl,'n');
+        addAuditEntry('n', fullText, '');
+        updateCounts('n');
+      }
+    }
+
+    // ── Annotate hallucination ──────────────────────────────────────────────
+    function annotate(contentEl, originalText, result){
+      const correction = (result.correction||'').replace(/^Actually,\s*/i,'') || result.reference || '';
+      if(!correction){ contentEl.innerHTML=esc(originalText); return; }
+
+      const oNums = originalText.match(/\d+[\.,]?\d*\s*(?:days?|hours?|years?|%|million|billion|\$|€|°[CF])?/gi)||[];
+      const cNums = correction.match(/\d+[\.,]?\d*\s*(?:days?|hours?|years?|%|million|billion|\$|€|°[CF])?/gi)||[];
+
+      let html = esc(originalText);
+      let annotated = false;
+
+      for(let i=0;i<oNums.length;i++){
+        const o=oNums[i]?.trim(), c=cNums[i]?.trim();
+        if(o && c && o.toLowerCase()!==c.toLowerCase()){
+          html = html.replace(
+            esc(o),
+            `<span class="hal">${esc(o)}</span><span class="cor"> ${esc(c)}<span class="tip">${esc(correction)}</span></span>`
+          );
+          annotated=true;
+          break;
+        }
+      }
+
+      if(!annotated){
+        html=`<span class="hal">${esc(originalText)}</span> `+
+             `<span class="cor">${esc(correction)}<span class="tip">${esc(correction)}</span></span>`;
+      }
+
+      contentEl.innerHTML=html;
+    }
+
+    // ── DOM helpers ─────────────────────────────────────────────────────────
+    function addUserMsg(text){
+      const msgs=document.getElementById('msgs');
+      const el=document.createElement('div');
+      el.className='msg user';
+      el.innerHTML=`
+        <div class="av av-u">YOU</div>
+        <div class="mbody">
+          <div class="mrole">You <span class="mtime">${getTime()}</span></div>
+          <div class="mcont">${esc(text)}</div>
+        </div>`;
+      msgs.appendChild(el);
+    }
+
+    function addAIMsg(){
+      const msgs=document.getElementById('msgs');
+      const msgEl=document.createElement('div');
+      msgEl.className='msg';
+      msgEl.innerHTML=`
+        <div class="av av-a">AI</div>
+        <div class="mbody">
+          <div class="mrole">Gemini <span class="mtime">${getTime()}</span></div>
+          <div class="mcont">
+            <div class="typing">
+              <div class="td2"></div><div class="td2"></div><div class="td2"></div>
+            </div>
+          </div>
+        </div>`;
+      msgs.appendChild(msgEl);
+      const contentEl=msgEl.querySelector('.mcont');
+      return {msgEl, contentEl};
+    }
+
+    function addBadge(contentEl, type){
+      const b=document.createElement('div');
+      b.className=`abadge ab-${type}`;
+      b.innerHTML=type==='v'?'✓ Verified against knowledge base':
+                  type==='h'?'⚠ Hallucination detected & corrected':
+                             '◎ Could not verify';
+      contentEl.appendChild(b);
+    }
+
+    // ── Audit log ───────────────────────────────────────────────────────────
+    function addAuditEntry(type, claim, source){
+      const log=document.getElementById('alog');
+      const empty=document.getElementById('aempty');
+      if(empty) empty.remove();
+
+      const labels={v:'✓ Verified',h:'⚠ Hallucination',n:'◎ Neutral'};
+      const el=document.createElement('div');
+      el.className=`ae ${type}`;
+      el.innerHTML=`
+        <div class="aev">${labels[type]}<span class="aet">${getTime()}</span></div>
+        <div class="aec">${esc(claim.slice(0,120))}${claim.length>120?'…':''}</div>
+        ${source?`<div class="aesrc">${esc(source)}</div>`:''}`;
+      log.insertBefore(el, log.firstChild);
+    }
+
+    function updateCounts(t){
+      counts[t]++;
+      document.getElementById(`s${t}`).textContent=counts[t];
+      document.getElementById(`c${t}`).textContent=counts[t];
+    }
+
+    function clearLog(){
+      conversationHistory = [];
+      const log=document.getElementById('alog');
+      log.innerHTML=`<div class="aempty" id="aempty"><div class="aempty-icon">◎</div><div class="aempty-txt">Log cleared.<br>Send a message to begin.</div></div>`;
+      counts={v:0,h:0,n:0};
+      ['v','h','n'].forEach(k=>{
+        document.getElementById(`s${k}`).textContent=0;
+        document.getElementById(`c${k}`).textContent=0;
+      });
+    }
+
+    function showError(msg){
+      const e=document.getElementById('err');
+      e.textContent='⚠ '+msg;
+      e.classList.add('show');
+    }
+    function hideError(){
+      document.getElementById('err').classList.remove('show');
+    }
+
+    function scrollBottom(){
+      const m=document.getElementById('msgs');
+      m.scrollTop=m.scrollHeight;
+    }
+
+    function getTime(){
+      return new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }
+
+    function esc(s){
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>
